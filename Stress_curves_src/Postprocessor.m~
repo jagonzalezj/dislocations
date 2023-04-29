@@ -1,0 +1,200 @@
+%%%%
+%%%%
+%%%%
+
+clc
+close all
+clear all
+
+%[psi, b, miu, Y, X, l] = material;  % Material properties for analytics
+
+
+list = dir('salida.csv')
+
+for i = 1:length(list)
+    A = importdata(list.name);
+    plotforpaper()
+    tiempo = A.data(:,27)/10000;
+    
+    %%%%  FEM Data --------------------------------------------------
+    % Load of the FEM stress 
+    FS = [A.data(:,1) A.data(:,2) A.data(:,3) A.data(:,4) A.data(:,5) A.data(:,6)];
+    %FS = fempar2HandLothe(FS); %(Oxx, Oyy, Ozz, Oxy, Oxz, Oyz)
+    FS=FS/1e6;
+    MakeMaps2(FS(:,5), FS(:,6), tiempo, 3,1);
+
+    
+    % Load of the Internal stress (Self or Weygand)
+    IS = [A.data(:,14) A.data(:,15) A.data(:,16) A.data(:,17) A.data(:,18) A.data(:,19)];
+    %IS = fempar2HandLothe(IS); %(Oxx, Oyy, Ozz, Oxy, Oxz, Oyz)
+    IS=IS/1e6;
+    MakeMaps2(IS(:,6), IS(:,5),tiempo, 1,1);
+    
+    % FEM+ (Self or Weygand)
+    MakeMaps2(FS(:,5)+IS(:,6), FS(:,6)+IS(:,5),tiempo, 2,1);
+    
+    
+    %%%% Theorethical part------------------------------------------
+    % Airy
+    %[Aixx,Aiyy,Aixy,Aizz] = AiryStress(b, miu, l, psi, X, tiempo);
+    %MakeMaps1(Aixx,Aiyy,Aixy,Aizz, tiempo,2,7)
+
+    % Image
+    %[ImSxx,ImSyy,ImSxy,ImSzz] = SelfStressCai(psi, -b, miu, X-l, tiempo);
+    %MakeMaps1(ImSxx,ImSyy,ImSxy,ImSzz, tiempo,1,2)
+
+    % Selfstress
+    %[Sxx,Syy,Sxy,Szz] = SelfStressCai(psi,b,miu,X+l, tiempo);
+    %MakeMaps1(Sxx,Syy,Sxy,Szz,tiempo,1,1)
+
+    % airy + Image
+    %MakeMaps1(ImSxx+Aixx,ImSyy+Aiyy,ImSxy+Aixy,ImSzz+Aizz,tiempo,1,1)
+    
+    % airy + self
+    %MakeMaps1(Sxx+Aixx,Syy+Aiyy,Sxy+Aixy,Szz+Aizz,tiempo,1,2)
+    
+    % Image +self
+    %MakeMaps1(ImSxx+Sxx,ImSyy+Syy,ImSxy+Sxy,ImSzz+Szz,tiempo,1,4)
+
+    % airy + Image +self
+    %MakeMaps1(ImSxx+Aixx+Sxx,ImSyy+Aiyy+Syy,ImSxy+Aixy+Sxy,ImSzz+Aizz+Szz,tiempo,1,5)
+    
+ %close all
+end
+
+disp FINISHED
+
+
+
+
+
+
+
+
+%%%%%%%%%%%%  FUNCTIONS  %%%%%%%%%%%%%%%
+
+function MakeMaps2(SigmaXX,SigmaXY, y,G,h)
+figure(h)
+ 
+    if G==1
+    plot(y,SigmaXX,'k-','linewidth', 1.0   )
+    hold on
+    plot(y,SigmaXY,'r-','linewidth', 1.0)
+    %legend('W \sigma_{XX}','W \sigma_{XY}')
+    end
+    if G==2
+    hold on
+    plot(y,SigmaXX,'k.')
+    plot(y,SigmaXY,'r.')
+    %legend('\sigma_{XX}','\sigma_{XY}')
+    end
+    
+    
+    if G==3
+    hold on
+    plot(y,SigmaXX,'k--','linewidth', 1.5)
+    plot(y,SigmaXY,'r--')
+    %legend('\sigma_{XX}','\sigma_{XY}')
+    end
+    %hold off
+    legend box off
+    grid on
+    set(gca,'FontWeight','bold');
+    set(gca,'linewidth',1)
+    xlabel('y (\mum)'); ylabel('\sigma (MPa)'); 
+    %xlim([-0.5 0.5]);
+end
+
+%%%-----------------------------------------------------------------------
+function plotforpaper()
+    fig = figure;
+    fig.Units  = 'centimeters';
+    fig.Position(3) = 9;
+    fig.Position(4) = 9;
+    set(fig.Children,'FontName','Times','FontSize',10);
+    set(gca,'LooseInset', max(get(gca,'TightInset'), 0.02));% remove white space
+    fig.PaperPositionMode   = 'auto';
+    axis square
+    % %set(gcf, 'color', 'none'); set(gca, 'color', 'none');
+end %----------------------------------------------------------------------
+%%%%-----------------------------------------------------------------------
+
+
+%%%%-----------------------------------------------------------------------
+%%%%%%      Self Stress  Edge (Hirt and Lothe {Singular})          %%%%%%%%
+%%%%-----------------------------------------------------------------------
+function [SigmaXX,SigmaYY,SigmaXY,SigmaZZ]=SelfStressHirt(psi,b,miu,x,y)
+prim = (miu*b)/(2*pi*(1-psi));
+SigmaXX =  -prim * ( (y.*(3*x.^2 + y.^2))./ (x.^2 + y.^2).^2 );
+SigmaYY =   prim * ( (y.*(x.^2 - y.^2))./ (x.^2 + y.^2).^2 );
+SigmaXY =   prim * ( (x.*(x.^2 - y.^2))./ (x.^2 + y.^2).^2 );
+SigmaZZ =  -prim *(2*psi) * (y./(x.^2 + y.^2)); 
+%SigmaZZ = psi*(SigmaXX + SigmaYY);
+%%%%%%     Self Stress  Screw (Hirt and Lothe {Singular})
+% SigmaXZ = -(miu*b)/(2*pi) * (y./(x.^2 + y.^2));
+% SigmaYZ = -(miu*b)/(2*pi) * (x./(x.^2 + y.^2));
+end
+
+%%%%-----------------------------------------------------------------------
+%%%%%%           Self Stress  Edge (Cai {Non-Singular})            %%%%%%%%
+%%%%-----------------------------------------------------------------------
+function [SigmaXX,SigmaYY,SigmaXY,SigmaZZ]=SelfStressCai(psi,b,miu,x,y)
+a = 0.0003;
+prim = (miu*b)/(2*pi*(1-psi));
+rhoa = sqrt(a^2 + x^2 + y.^2);
+SigmaXX =  -prim * (y./rhoa.^2).*(1 + (2*(x.^2 + a^2)./rhoa.^2));
+SigmaYY =   prim * (y./rhoa.^2).*(1 - (2*(y.^2 + a^2)./rhoa.^2));
+SigmaXY =   prim * (x./rhoa.^2).*(1 - ((2*(y.^2))./rhoa.^2));
+SigmaZZ =  -prim * (2*psi) .* (y./rhoa.^2).*(1 + (a^2./rhoa.^2));
+%%%SigmaZZ = psi*(SigmaXX + SigmaYY)
+%%%%%%     Self Stress  Screw (Cai {Non-Singular}
+% SigmaXZ = -(miu*b)/(2*pi) * (y./rhoa.^2) .* (1 + (a^2/rhoa.^2));
+% SigmaYZ = -(miu*b)/(2*pi) * (x./rhoa.^2) .* (1 + (a^2/rhoa.^2));
+end
+
+%%%%-----------------------------------------------------------------------
+%%%%%%      Airy Stress Edge (Hirt and Lothe {Singular}) 
+%%%%-----------------------------------------------------------------------
+function [I_SigmaXX,I_SigmaYY,I_SigmaXY,I_SigmaZZ]=AiryStress(b,miu,l,psi,x,y)
+l = l;
+r = sqrt(l.^2 + y.^2);
+prim = (miu*b)/(2*pi*(1-psi));
+I_SigmaXX = -prim * (4*l*x.*y)./(r.^6) .* (3.*(l-x).^2 - y.^2);
+I_SigmaYY =  prim * (2*l)./(r.^6) .* ( 4*y.*(l-x).^3 + 6*x.*y.*(l-x).^2 + 4*(y.^3).*(l-x) - 2*x.*y.^3);
+I_SigmaXY = -prim * (2*l)./(r.^6) .* ( (l-x).^4 + 2*x.*(l-x).^3 - 6*x.*(y.^2).*(l-x) - y.^4);
+I_SigmaZZ =  prim * (8*l*psi)./(r.^6) .* (y.*(l-x).^3 + (l-x).*(y).^3); 
+end
+
+% parameter for gererate theoretical fields
+function [psi, b, miu, Y, X, l] = material()
+% generate the theorethical Airy with the absice of imput_data
+% % Material properties: Copper (Numodis)
+    %E = 111216;            % Young Modulus  [Mpa]
+    psi = 0.324;             % Poisson ratio
+    b = 0.2552;              % Burgers vector [nm]
+    miu = 42000;             % [MPa]
+    %E = 2*miu*(1+psi);
+    b = b * 0.001;     % nm    ==>  micrometer
+
+    Y = [-1:0.01:1];  % micrometers
+    X = 0;
+    l =0.1;
+end  %---------------------------------------------------------------------
+
+
+function savefigure(este,n)
+
+    nombre = este(1:length(este)-4)
+    
+    if n == 1
+       fig_name = strcat('WAiry',num2str(nombre))
+
+    else
+       fig_name = strcat('WStat',num2str(nombre));
+
+    end
+
+     print(fig_name,'-djpeg','-r1000'); 
+end
+
+
